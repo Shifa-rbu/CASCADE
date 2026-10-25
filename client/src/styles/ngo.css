@@ -1,0 +1,74 @@
+.ngo-shell {
+  --ngo-ink: #17231f;
+  --ngo-muted: #61736b;
+  --ngo-border: #d9e3de;
+  --ngo-surface: #ffffff;
+  --ngo-background: #f4f7f5;
+  --ngo-accent: #176b4d;
+  --ngo-accent-dark: #104b37;
+  --ngo-warning: #9a5d00;
+  --ngo-error: #a32d2d;
+  box-sizing: border-box; min-height: 100vh; padding: 40px max(20px, 5vw); color: var(--ngo-ink); background: var(--ngo-background); font: 15px/1.5 system-ui, sans-serif;
+}
+.ngo-shell *, .ngo-shell *::before, .ngo-shell *::after { box-sizing: border-box; }
+.ngo-header, .ngo-section-heading, .ngo-row, .ngo-review { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.ngo-header { margin: 0 auto 28px; max-width: 1240px; flex-wrap: wrap; }
+.ngo-header h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); letter-spacing: -.04em; }
+.ngo-card, .ngo-wallet { max-width: 1240px; margin: 0 auto 20px; padding: 24px; background: var(--ngo-surface); border: 1px solid var(--ngo-border); border-radius: 12px; box-shadow: 0 6px 18px rgb(23 35 31 / 4%); }
+.ngo-wallet { display: flex; align-items: center; justify-content: space-between; min-width: min(100%, 390px); margin: 0; padding: 16px 18px; }
+.ngo-eyebrow { margin: 0 0 4px; color: var(--ngo-accent); font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.ngo-card h2, .ngo-wallet h2 { margin: 0 0 18px; font-size: 1.2rem; }
+.ngo-section-heading { margin-bottom: 18px; align-items: center; }
+.ngo-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 0; }
+.ngo-metrics div, .ngo-details dl div { padding-top: 10px; border-top: 1px solid var(--ngo-border); }
+.ngo-metrics dt, .ngo-details dt { color: var(--ngo-muted); font-size: 12px; }
+.ngo-metrics dd { margin: 3px 0 0; font-size: 1.1rem; font-weight: 700; }
+.ngo-grid { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(320px, 1.2fr); gap: 20px; max-width: 1240px; margin: 0 auto; }
+.ngo-grid .ngo-card { width: 100%; }
+.ngo-form, .ngo-stack { display: grid; gap: 14px; }
+.ngo-form label { display: grid; gap: 5px; color: var(--ngo-ink); font-weight: 600; }
+.ngo-form input, .ngo-form select { width: 100%; padding: 10px 11px; color: inherit; background: #fff; border: 1px solid #adbbb4; border-radius: 6px; font: inherit; }
+.ngo-form input:focus, .ngo-form select:focus, .ngo-button:focus-visible, .ngo-list-item:focus-visible { outline: 3px solid #91d2b5; outline-offset: 2px; }
+.ngo-button { padding: 10px 16px; color: #fff; background: var(--ngo-accent); border: 1px solid var(--ngo-accent); border-radius: 6px; font: inherit; font-weight: 700; cursor: pointer; }
+.ngo-button:hover:not(:disabled) { background: var(--ngo-accent-dark); }
+.ngo-button:disabled { cursor: not-allowed; opacity: .55; }
+.ngo-button-secondary { color: var(--ngo-accent-dark); background: #fff; }
+.ngo-help, .ngo-muted, .ngo-evidence p, .ngo-evidence small, .ngo-list-item small { color: var(--ngo-muted); }
+.ngo-help { margin: 0; font-size: 12px; }
+.ngo-error { color: var(--ngo-error); }
+.ngo-success { color: var(--ngo-accent-dark); }
+.ngo-warning { color: var(--ngo-warning); }
+.ngo-mono { margin: 4px 0; font-family: ui-monospace, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.ngo-badge { display: inline-block; padding: 3px 8px; color: var(--ngo-muted); background: #eef2f0; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
+.ngo-badge-demo { color: #765218; background: #fff1d6; }
+.ngo-status-released, .ngo-status-reserved, .ngo-status-none { color: var(--ngo-accent-dark); background: #dcefe6; }
+.ngo-status-cancelled { color: var(--ngo-error); background: #fbe4e4; }
+.ngo-status-paused_review, .ngo-status-transaction_pending { color: var(--ngo-warning); background: #fff1d6; }
+.ngo-status-unverified, .ngo-status-transaction_failed { color: var(--ngo-error); background: #fbe4e4; }
+.ngo-status-duplicate_detected { color: var(--ngo-warning); background: #fff1d6; }
+.ngo-evidence { padding: 13px; border: 1px solid var(--ngo-border); border-radius: 8px; }
+.ngo-evidence p { margin: 7px 0 5px; }
+.ngo-evidence small { font-size: 11px; }
+.ngo-proposals { display: grid; grid-template-columns: minmax(230px, .8fr) 1.2fr; gap: 18px; }
+.ngo-list { display: grid; align-content: start; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ngo-list li { margin: 0; padding: 0; }
+.ngo-list-item { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 12px; color: inherit; text-align: left; background: #fff; border: 1px solid var(--ngo-border); border-radius: 7px; cursor: pointer; }
+.ngo-list-item.is-selected { border-color: var(--ngo-accent); box-shadow: inset 3px 0 var(--ngo-accent); }
+.ngo-list-item span:last-child { text-align: right; }
+.ngo-list-item strong, .ngo-list-item small { display: block; }
+.ngo-details { padding: 18px; background: #f8faf9; border: 1px solid var(--ngo-border); border-radius: 8px; }
+.ngo-details h3, .ngo-review h3 { margin: 0; font-size: 1rem; }
+.ngo-details dl { display: grid; gap: 10px; margin: 18px 0; }
+.ngo-details dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.ngo-api-record { margin-top: 16px; }
+.ngo-api-record h3 { margin: 0 0 12px; font-size: 1rem; }
+.ngo-api-record dl { display: grid; gap: 10px; margin: 0; }
+.ngo-api-record dl div { padding-top: 8px; border-top: 1px solid var(--ngo-border); }
+.ngo-api-record dt { color: var(--ngo-muted); font-size: 12px; }
+.ngo-api-record dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+.ngo-approval-list { display: grid; gap: 5px; font-family: ui-monospace, monospace; font-size: 12px; }
+.ngo-transaction-summary { display: grid; gap: 3px; margin-top: 8px; padding: 10px; background: #f8faf9; border: 1px solid var(--ngo-border); border-radius: 6px; font-size: 12px; }
+.ngo-review { padding: 16px 0; border-top: 1px solid var(--ngo-border); }
+.ngo-review > div { flex: 1; }
+.ngo-review p { margin: 8px 0; }
+@media (max-width: 760px) { .ngo-shell { padding: 24px 14px; } .ngo-metrics, .ngo-grid, .ngo-proposals { grid-template-columns: 1fr; } .ngo-header, .ngo-review { display: block; } .ngo-wallet { margin-top: 20px; } .ngo-review > div + div { margin-top: 18px; } }
