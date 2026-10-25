@@ -45,7 +45,7 @@ resolveReview(uint256 proposalId, ReviewOutcome outcome)
 domainSeparator() view returns (bytes32)
 ```
 
-`setVendorKeyStatus` is admin-only. `approveSpend` is restricted to the three configured approvers and rejects repeat approval by the same address. `releaseSpend` requires two distinct approvals, an active vendor key, and an unexpired reservation. The caller who proposes is not treated as a privileged role.
+`setVendorKeyStatus` is admin-only. `approveSpend` is restricted to the three configured approvers and rejects repeat approval by the same address. `releaseSpend` requires two distinct approvals, an active vendor key, and an unexpired reservation. A proposer may cancel only their own unpaid reservation; submitting or releasing a proposal grants no additional privilege.
 
 An active reservation can be cancelled by its proposer or reviewer before its deadline. After the deadline anyone can expire it. Cancellation changes `RESERVED` back to `UNSEEN`, allowing a fresh proposal with a fresh signature. A paid invoice remains `CONSUMED` permanently.
 
@@ -75,7 +75,7 @@ InvoiceState:   UNSEEN | RESERVED | CONSUMED
 ReviewOutcome:  NONE | DISMISSED_FALSE_POSITIVE | CONFIRMED_DUPLICATE
 ```
 
-Normal lifecycle: `UNSEEN -> RESERVED -> CONSUMED` on payment, or `UNSEEN -> RESERVED -> UNSEEN` on authorized cancellation/expiry. A nullifier already `RESERVED` or `CONSUMED` creates a `PAUSED_REVIEW` proposal and emits `DuplicateInvoiceAttempt`; this path returns normally and does not reserve funds or pay the vendor. The prior invoice state and proposal ID remain unchanged.
+Normal lifecycle: `UNSEEN -> RESERVED -> CONSUMED` on payment, or `UNSEEN -> RESERVED -> UNSEEN` on authorized cancellation/expiry. A nullifier already `RESERVED` or `CONSUMED` creates a `PAUSED_REVIEW` proposal and emits `DuplicateInvoiceAttempt`; this path returns normally and does not reserve funds or pay the vendor, even if the attempted amount exceeds the cap or current available balance. The prior invoice state and proposal ID remain unchanged.
 
 Only the reviewer may resolve a held proposal, once. `CONFIRMED_DUPLICATE` keeps it held; `DISMISSED_FALSE_POSITIVE` marks that held proposal `CANCELLED`. Resolution never deletes the incident. To retry after a false positive against an unpaid reservation, cancel/expire the original reservation and submit a new proposal with a fresh signature.
 
