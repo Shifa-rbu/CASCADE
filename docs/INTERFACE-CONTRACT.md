@@ -12,7 +12,7 @@ The contract creates one campaign at deployment with ID `1`. `purpose` is public
 - Any account may donate. A vendor EIP-712 signature authorizes the proposal regardless of which account submits it.
 - The vendor who signed a proposal receives its payment.
 
-No raw invoice, evidence file, beneficiary, or bank details are stored on-chain. The contract exposes only a caller-supplied opaque invoice nullifier and evidence digest; the evidence API owns private file handling.
+No raw invoice, evidence file, beneficiary, or bank details are stored on-chain. The contract exposes only a caller-supplied opaque invoice nullifier and evidence digest; the evidence API owns private file handling. The contract tracks evidence digests independently from nullifiers, so replaying the same exact file digest with a different nullifier is held for review.
 
 ## Methods
 
@@ -75,7 +75,9 @@ InvoiceState:   UNSEEN | RESERVED | CONSUMED
 ReviewOutcome:  NONE | DISMISSED_FALSE_POSITIVE | CONFIRMED_DUPLICATE
 ```
 
-Normal lifecycle: `UNSEEN -> RESERVED -> CONSUMED` on payment, or `UNSEEN -> RESERVED -> UNSEEN` on authorized cancellation/expiry. A nullifier already `RESERVED` or `CONSUMED` creates a `PAUSED_REVIEW` proposal and emits `DuplicateInvoiceAttempt`; this path returns normally and does not reserve funds or pay the vendor, even if the attempted amount exceeds the cap or current available balance. The prior invoice state and proposal ID remain unchanged.
+Normal lifecycle: `UNSEEN -> RESERVED -> CONSUMED` on payment, or `UNSEEN -> RESERVED -> UNSEEN` on authorized cancellation/expiry. A nullifier already `RESERVED` or `CONSUMED` creates a `PAUSED_REVIEW` proposal and emits `DuplicateInvoiceAttempt`. An evidence digest already `RESERVED` or `CONSUMED` also creates a `PAUSED_REVIEW` proposal and emits `EvidenceDuplicateAttempt`, even when the caller supplies a different nullifier. Duplicate paths return normally and do not reserve funds or pay the vendor, even if the attempted amount exceeds the cap or current available balance. Existing identity state and its original proposal ID remain unchanged.
+
+Evidence-digest uniqueness detects replay of the exact same bytes. It does not detect a re-scanned or edited copy, establish document authenticity, or prove that a vendor issued the invoice. Those remain unverified and require a canonical invoice fingerprint and independent vendor verification.
 
 Only the reviewer may resolve a held proposal, once. `CONFIRMED_DUPLICATE` keeps it held; `DISMISSED_FALSE_POSITIVE` marks that held proposal `CANCELLED`. Resolution never deletes the incident. To retry after a false positive against an unpaid reservation, cancel/expire the original reservation and submit a new proposal with a fresh signature.
 
@@ -87,6 +89,7 @@ VendorKeyStatusChanged(address indexed vendor, bool active)
 SpendProposed(uint256 indexed proposalId, uint256 indexed campaignId, address indexed vendor, uint256 amount, bytes32 category, bytes32 invoiceNullifier, bytes32 evidenceDigest, ProposalStatus status)
 SpendApproved(uint256 indexed proposalId, address indexed approver, uint8 approvalCount)
 DuplicateInvoiceAttempt(uint256 indexed proposalId, bytes32 indexed invoiceNullifier, InvoiceState existingState, uint256 existingProposalId, address vendor)
+EvidenceDuplicateAttempt(uint256 indexed proposalId, bytes32 indexed evidenceDigest, uint256 existingProposalId, address vendor)
 SpendReleased(uint256 indexed proposalId, address indexed vendor, uint256 amount)
 ReservationCancelled(uint256 indexed proposalId, bytes32 indexed invoiceNullifier)
 ReviewResolved(uint256 indexed proposalId, address indexed reviewer, ReviewOutcome outcome)
@@ -94,6 +97,6 @@ ReviewResolved(uint256 indexed proposalId, address indexed reviewer, ReviewOutco
 
 ## Public reads
 
-`campaign()` returns the purpose, allowed category, and spending cap. `campaignBalance(1)`, `availableBalance()`, `reservedTotal`, and `releasedTotal` expose safe aggregate amounts. `proposals(id)` exposes the fields in the `Proposal` struct; `invoiceStates(nullifier)`, `invoiceProposalIds(nullifier)`, `hasApproved(id, address)`, `vendorKeyActive(vendor)`, and `vendorNonces(vendor)` support detail views. All evidence digests and nullifiers are opaque identifiers, not evidence contents.
+`campaign()` returns the purpose, allowed category, and spending cap. `campaignBalance(1)`, `availableBalance()`, `reservedTotal`, and `releasedTotal` expose safe aggregate amounts. `proposals(id)` exposes the fields in the `Proposal` struct; `invoiceStates(nullifier)`, `invoiceProposalIds(nullifier)`, `evidenceStates(digest)`, `evidenceProposalIds(digest)`, `hasApproved(id, address)`, `vendorKeyActive(vendor)`, and `vendorNonces(vendor)` support detail views. All evidence digests and nullifiers are opaque identifiers, not evidence contents.
 
 Local chain status and bridge/fiat examples are UI/API concerns; any such entries must be visibly labeled as simulations.

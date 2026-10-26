@@ -64,6 +64,8 @@ contract PurposeBoundEscrow {
     mapping(uint256 => mapping(address => bool)) public hasApproved;
     mapping(bytes32 => InvoiceState) public invoiceStates;
     mapping(bytes32 => uint256) public invoiceProposalIds;
+    mapping(bytes32 => InvoiceState) public evidenceStates;
+    mapping(bytes32 => uint256) public evidenceProposalIds;
 
     uint256 public nextProposalId;
     uint256 public reservedTotal;
@@ -86,6 +88,12 @@ contract PurposeBoundEscrow {
         uint256 indexed proposalId,
         bytes32 indexed invoiceNullifier,
         InvoiceState existingState,
+        uint256 existingProposalId,
+        address vendor
+    );
+    event EvidenceDuplicateAttempt(
+        uint256 indexed proposalId,
+        bytes32 indexed evidenceDigest,
         uint256 existingProposalId,
         address vendor
     );
@@ -180,8 +188,9 @@ contract PurposeBoundEscrow {
         require(vendorKeyActive[vendor], "Vendor key inactive");
         vendorNonces[vendor] = nonce + 1;
 
-        InvoiceState existingState = invoiceStates[invoiceNullifier];
-        bool duplicate = existingState != InvoiceState.UNSEEN;
+        bool duplicate =
+            invoiceStates[invoiceNullifier] != InvoiceState.UNSEEN ||
+                evidenceStates[evidenceDigest] != InvoiceState.UNSEEN;
         if (!duplicate) {
             require(amount <= campaign.spendingCap, "Amount exceeds cap");
             require(releasedTotal + reservedTotal <= campaign.spendingCap - amount, "Spending cap exceeded");
@@ -207,12 +216,14 @@ contract PurposeBoundEscrow {
         _emitSpendProposed(proposalId);
 
         if (duplicate) {
-            _emitDuplicateInvoiceAttempt(proposalId, existingState);
+            _emitDuplicateAttempts(proposalId);
             return proposalId;
         }
 
         invoiceStates[invoiceNullifier] = InvoiceState.RESERVED;
         invoiceProposalIds[invoiceNullifier] = proposalId;
+        evidenceStates[evidenceDigest] = InvoiceState.RESERVED;
+        evidenceProposalIds[evidenceDigest] = proposalId;
         reservedTotal += amount;
     }
 
@@ -240,6 +251,7 @@ contract PurposeBoundEscrow {
         reservedTotal -= proposal.amount;
         releasedTotal += proposal.amount;
         invoiceStates[proposal.invoiceNullifier] = InvoiceState.CONSUMED;
+        evidenceStates[proposal.evidenceDigest] = InvoiceState.CONSUMED;
 
         (bool sent, ) = payable(proposal.vendor).call{value: proposal.amount}("");
         require(sent, "Vendor payment failed");
@@ -261,6 +273,10 @@ contract PurposeBoundEscrow {
         reservedTotal -= proposal.amount;
         invoiceStates[proposal.invoiceNullifier] = InvoiceState.UNSEEN;
         invoiceProposalIds[proposal.invoiceNullifier] = 0;
+        if (evidenceProposalIds[proposal.evidenceDigest] == proposalId) {
+            evidenceStates[proposal.evidenceDigest] = InvoiceState.UNSEEN;
+            evidenceProposalIds[proposal.evidenceDigest] = 0;
+        }
         emit ReservationCancelled(proposalId, proposal.invoiceNullifier);
     }
 
@@ -306,13 +322,33 @@ contract PurposeBoundEscrow {
         );
     }
 
-    function _emitDuplicateInvoiceAttempt(uint256 proposalId, InvoiceState existingState) private {
+    function _emitDuplicateAttempts(uint256 proposalId) private {
+        Proposal storage proposal = proposals[proposalId];
+        if (invoiceStates[proposal.invoiceNullifier] != InvoiceState.UNSEEN) {
+            _emitDuplicateInvoiceAttempt(proposalId);
+        }
+        if (evidenceStates[proposal.evidenceDigest] != InvoiceState.UNSEEN) {
+            _emitEvidenceDuplicateAttempt(proposalId);
+        }
+    }
+
+    function _emitDuplicateInvoiceAttempt(uint256 proposalId) private {
         Proposal storage proposal = proposals[proposalId];
         emit DuplicateInvoiceAttempt(
             proposalId,
             proposal.invoiceNullifier,
-            existingState,
+            invoiceStates[proposal.invoiceNullifier],
             invoiceProposalIds[proposal.invoiceNullifier],
+            proposal.vendor
+        );
+    }
+
+    function _emitEvidenceDuplicateAttempt(uint256 proposalId) private {
+        Proposal storage proposal = proposals[proposalId];
+        emit EvidenceDuplicateAttempt(
+            proposalId,
+            proposal.evidenceDigest,
+            evidenceProposalIds[proposal.evidenceDigest],
             proposal.vendor
         );
     }

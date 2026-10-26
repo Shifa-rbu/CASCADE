@@ -1,3 +1,5 @@
+import type { Eip1193Provider } from "../../wallet";
+
 export type WalletTransactionState = "signature needed" | "pending" | "confirmed" | "failed";
 export type Bytes32Hex = `0x${string}`;
 
@@ -67,14 +69,4 @@ export interface WalletStatusProps {
   onChange?: (snapshot: WalletSnapshot) => void;
 }
 
-export interface EthereumProvider {
-  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
-  on?: (event: string, handler: (...args: unknown[]) => void) => void;
-  removeListener?: (event: string, handler: (...args: unknown[]) => void) => void;
-}
-
-declare global {
-  interface Window {
-    ethereum?: EthereumProvider;
-  }
-}
+export type EthereumProvider = Eip1193Provider;
