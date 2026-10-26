@@ -2,6 +2,7 @@ import {
   BrowserProvider,
   Contract,
   Interface,
+  formatEther,
   isAddress,
   parseEther,
   solidityPackedKeccak256,
@@ -10,11 +11,30 @@ import type { Eip1193Provider } from "./wallet";
 
 export const ESCROW_ABI = [
   "function campaign() view returns (string purpose, bytes32 allowedCategory, uint256 spendingCap)",
+  "function campaignBalance(uint256 campaignId) view returns (uint256)",
+  "function availableBalance() view returns (uint256)",
+  "function reservedTotal() view returns (uint256)",
+  "function releasedTotal() view returns (uint256)",
+  "function nextProposalId() view returns (uint256)",
   "function vendorNonces(address vendor) view returns (uint256)",
+  "function vendorKeyActive(address vendor) view returns (bool)",
+  "function approvers(uint256 index) view returns (address)",
+  "function hasApproved(uint256 proposalId, address approver) view returns (bool)",
+  "function proposals(uint256 proposalId) view returns (uint256 campaignId, uint256 amount, bytes32 category, bytes32 invoiceNullifier, bytes32 evidenceDigest, address vendor, address proposer, uint64 deadline, uint8 status, uint8 approvalCount, uint8 reviewOutcome)",
   "function proposeSpend(uint256 campaignId,uint256 amount,bytes32 category,bytes32 invoiceNullifier,bytes32 evidenceDigest,uint256 nonce,uint64 deadline,bytes vendorSignature) returns (uint256 proposalId)",
+  "function approveSpend(uint256 proposalId)",
+  "function releaseSpend(uint256 proposalId)",
+  "function cancelOrExpireReservation(uint256 proposalId)",
+  "function resolveReview(uint256 proposalId, uint8 outcome)",
+  "function donate(uint256 campaignId) payable",
+  "event DonationReceived(uint256 indexed campaignId, address indexed donor, uint256 amount)",
   "event SpendProposed(uint256 indexed proposalId,uint256 indexed campaignId,address indexed vendor,uint256 amount,bytes32 category,bytes32 invoiceNullifier,bytes32 evidenceDigest,uint8 status)",
+  "event SpendApproved(uint256 indexed proposalId, address indexed approver, uint8 approvalCount)",
   "event DuplicateInvoiceAttempt(uint256 indexed proposalId,bytes32 indexed invoiceNullifier,uint8 existingState,uint256 existingProposalId,address vendor)",
   "event EvidenceDuplicateAttempt(uint256 indexed proposalId,bytes32 indexed evidenceDigest,uint256 existingProposalId,address vendor)",
+  "event SpendReleased(uint256 indexed proposalId, address indexed vendor, uint256 amount)",
+  "event ReservationCancelled(uint256 indexed proposalId, bytes32 indexed invoiceNullifier)",
+  "event ReviewResolved(uint256 indexed proposalId, address indexed reviewer, uint8 outcome)",
 ];
 
 export interface EscrowConfiguration {
@@ -26,6 +46,18 @@ export interface ProposalSubmission {
   hash: `0x${string}`;
   proposalId: string;
   heldForReview: boolean;
+}
+
+export interface OnChainCampaignState {
+  purpose: string;
+  allowedCategory: string;
+  spendingCapEth: string;
+  campaignBalanceEth: string;
+  availableBalanceEth: string;
+  reservedTotalEth: string;
+  releasedTotalEth: string;
+  approvers: string[];
+  nextProposalId: number;
 }
 
 export function getEscrowConfiguration(): EscrowConfiguration | null {
@@ -154,4 +186,151 @@ export async function submitEvidenceProposal(options: {
     );
   }
   return { hash: transaction.hash, proposalId, heldForReview };
+}
+
+export async function approveSpendProposal(options: {
+  provider: Eip1193Provider;
+  account: string;
+  config: EscrowConfiguration;
+  proposalId: string | number | bigint;
+  onSubmitted?: (hash: `0x${string}`) => void;
+}): Promise<{ hash: `0x${string}`; approvalCount: number }> {
+  const { provider, account, config, proposalId, onSubmitted } = options;
+  const browserProvider = new BrowserProvider(provider);
+  const signer = await browserProvider.getSigner(account);
+  const writeContract = new Contract(config.address, ESCROW_ABI, signer);
+
+  const transaction = await writeContract.approveSpend(BigInt(proposalId));
+  if (onSubmitted) onSubmitted(transaction.hash);
+
+  const receipt = await transaction.wait();
+  if (!receipt || receipt.status !== 1) {
+    throw new Error("Approval transaction failed on-chain.");
+  }
+
+  const contractInterface = new Interface(ESCROW_ABI);
+  let approvalCount = 1;
+  for (const log of receipt.logs) {
+    try {
+      const event = contractInterface.parseLog(log);
+      if (event && event.name === "SpendApproved") {
+        approvalCount = Number(event.args.approvalCount);
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return { hash: transaction.hash, approvalCount };
+}
+
+export async function releaseSpendProposal(options: {
+  provider: Eip1193Provider;
+  account: string;
+  config: EscrowConfiguration;
+  proposalId: string | number | bigint;
+  onSubmitted?: (hash: `0x${string}`) => void;
+}): Promise<{ hash: `0x${string}` }> {
+  const { provider, account, config, proposalId, onSubmitted } = options;
+  const browserProvider = new BrowserProvider(provider);
+  const signer = await browserProvider.getSigner(account);
+  const writeContract = new Contract(config.address, ESCROW_ABI, signer);
+
+  const transaction = await writeContract.releaseSpend(BigInt(proposalId));
+  if (onSubmitted) onSubmitted(transaction.hash);
+
+  const receipt = await transaction.wait();
+  if (!receipt || receipt.status !== 1) {
+    throw new Error("Release transaction failed on-chain.");
+  }
+
+  return { hash: transaction.hash };
+}
+
+export async function resolveReviewProposal(options: {
+  provider: Eip1193Provider;
+  account: string;
+  config: EscrowConfiguration;
+  proposalId: string | number | bigint;
+  outcome: number; // 1 = false positive, 2 = confirmed duplicate
+  onSubmitted?: (hash: `0x${string}`) => void;
+}): Promise<{ hash: `0x${string}` }> {
+  const { provider, account, config, proposalId, outcome, onSubmitted } = options;
+  const browserProvider = new BrowserProvider(provider);
+  const signer = await browserProvider.getSigner(account);
+  const writeContract = new Contract(config.address, ESCROW_ABI, signer);
+
+  const transaction = await writeContract.resolveReview(BigInt(proposalId), outcome);
+  if (onSubmitted) onSubmitted(transaction.hash);
+
+  const receipt = await transaction.wait();
+  if (!receipt || receipt.status !== 1) {
+    throw new Error("Review resolution transaction failed on-chain.");
+  }
+
+  return { hash: transaction.hash };
+}
+
+export async function donateToCampaign(options: {
+  provider: Eip1193Provider;
+  account: string;
+  config: EscrowConfiguration;
+  amountEth: string;
+  onSubmitted?: (hash: `0x${string}`) => void;
+}): Promise<{ hash: `0x${string}` }> {
+  const { provider, account, config, amountEth, onSubmitted } = options;
+  const amount = parseEther(amountEth);
+  const browserProvider = new BrowserProvider(provider);
+  const signer = await browserProvider.getSigner(account);
+  const writeContract = new Contract(config.address, ESCROW_ABI, signer);
+
+  const transaction = await writeContract.donate(1n, { value: amount });
+  if (onSubmitted) onSubmitted(transaction.hash);
+
+  const receipt = await transaction.wait();
+  if (!receipt || receipt.status !== 1) {
+    throw new Error("Donation transaction failed on-chain.");
+  }
+
+  return { hash: transaction.hash };
+}
+
+export async function readOnChainCampaignState(
+  provider: Eip1193Provider,
+  config: EscrowConfiguration,
+): Promise<OnChainCampaignState> {
+  const browserProvider = new BrowserProvider(provider);
+  const readContract = new Contract(config.address, ESCROW_ABI, browserProvider);
+
+  const [campaign, balance, available, reserved, released, nextProposalId] =
+    await Promise.all([
+      readContract.campaign(),
+      readContract.campaignBalance(1n),
+      readContract.availableBalance(),
+      readContract.reservedTotal(),
+      readContract.releasedTotal(),
+      readContract.nextProposalId(),
+    ]);
+
+  const approvers: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    try {
+      const addr = await readContract.approvers(i);
+      approvers.push(addr);
+    } catch {
+      break;
+    }
+  }
+
+  return {
+    purpose: campaign.purpose,
+    allowedCategory: campaign.allowedCategory,
+    spendingCapEth: formatEther(campaign.spendingCap),
+    campaignBalanceEth: formatEther(balance),
+    availableBalanceEth: formatEther(available),
+    reservedTotalEth: formatEther(reserved),
+    releasedTotalEth: formatEther(released),
+    approvers,
+    nextProposalId: Number(nextProposalId),
+  };
 }
