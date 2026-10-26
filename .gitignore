@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+artifacts/
+cache/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+client/node_modules/
+client/dist/
