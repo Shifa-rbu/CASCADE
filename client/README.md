@@ -4,9 +4,11 @@ This is a local demo client for the synthetic evidence API. It creates a
 synthetic PDF in the browser, uploads it to the API, computes SHA-256 over the
 same bytes, and only displays a record when the browser and API digests match.
 
-The UI deliberately labels signature and contract duplicate status as
-`UNVERIFIED`. It does not connect a wallet, submit a contract transaction, or
-verify a vendor signature. Use synthetic demo data only.
+The client can connect to an injected browser wallet such as MetaMask using the
+wallet's account-approval prompt. It displays the public account and selected
+network and can request a switch to Polygon Amoy (chain ID 80002). Wallet
+connection does not sign or send transactions. Signature and contract
+duplicate status remain `UNVERIFIED`. Use synthetic demo data only.
 
 ## Run locally
 
@@ -31,4 +33,10 @@ To create a production bundle:
 
 ```powershell
 npm run build
+```
+
+Run the wallet helper tests with:
+
+```powershell
+npm test
 ```

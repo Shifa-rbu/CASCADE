@@ -1,4 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
+import {
+  connectInjectedWallet,
+  formatWalletError,
+  getInjectedWallet,
+  getProviderErrorCode,
+  parseWalletChainId,
+  POLYGON_AMOY_CHAIN_ID,
+  readInjectedWallet,
+  shortenWalletAddress,
+  switchToPolygonAmoy,
+} from "./wallet";
+import type { Eip1193Provider, WalletConnection } from "./wallet";
 
 type ApiHealth = "checking" | "online" | "offline";
 
@@ -89,6 +101,10 @@ export default function App() {
   const [record, setRecord] = useState<EvidenceResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [walletProvider, setWalletProvider] = useState<Eip1193Provider | null>(null);
+  const [wallet, setWallet] = useState<WalletConnection | null>(null);
+  const [walletBusy, setWalletBusy] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
 
   const checkApi = useCallback(async () => {
     setApiHealth("checking");
@@ -113,6 +129,92 @@ export default function App() {
   useEffect(() => {
     void checkApi();
   }, [checkApi]);
+
+  useEffect(() => {
+    const provider = walletProvider ?? getInjectedWallet();
+    if (!provider) return;
+
+    if (walletProvider !== provider) setWalletProvider(provider);
+
+    let active = true;
+    const refreshWallet = async () => {
+      try {
+        const connection = await readInjectedWallet(provider);
+        if (active) {
+          setWallet(connection);
+          setWalletError(null);
+        }
+      } catch (caught) {
+        if (active) setWalletError(formatWalletError(caught));
+      }
+    };
+    const handleAccountsChanged = () => {
+      void refreshWallet();
+    };
+    const handleChainChanged = (chainId: unknown) => {
+      try {
+        const nextChainId = parseWalletChainId(chainId);
+        setWallet((current) =>
+          current ? { ...current, chainId: nextChainId } : current,
+        );
+        setWalletError(null);
+      } catch (caught) {
+        setWalletError(formatWalletError(caught));
+      }
+    };
+
+    void refreshWallet();
+    provider.on?.("accountsChanged", handleAccountsChanged);
+    provider.on?.("chainChanged", handleChainChanged);
+    return () => {
+      active = false;
+      provider.removeListener?.("accountsChanged", handleAccountsChanged);
+      provider.removeListener?.("chainChanged", handleChainChanged);
+    };
+  }, [walletProvider]);
+
+  async function handleConnectWallet() {
+    const provider = walletProvider ?? getInjectedWallet();
+    if (!provider) {
+      setWalletError("No browser wallet was detected. Install or enable a wallet extension, then reload this page.");
+      return;
+    }
+
+    setWalletBusy(true);
+    setWalletError(null);
+    try {
+      const connection = await connectInjectedWallet(provider);
+      setWalletProvider(provider);
+      setWallet(connection);
+    } catch (caught) {
+      const rejected = getProviderErrorCode(caught) === 4001;
+      setWalletError(formatWalletError(caught));
+      if (rejected) setWallet(null);
+    } finally {
+      setWalletBusy(false);
+    }
+  }
+
+  async function handleSwitchNetwork() {
+    if (!walletProvider) return;
+
+    setWalletBusy(true);
+    setWalletError(null);
+    try {
+      await switchToPolygonAmoy(walletProvider);
+      const connection = await readInjectedWallet(walletProvider);
+      if (connection) {
+        setWallet(connection);
+        if (connection.chainId !== POLYGON_AMOY_CHAIN_ID) {
+          setWalletError("The wallet is still on a different network. Select Polygon Amoy (80002) in your wallet.");
+        }
+      }
+    } catch (caught) {
+      setWalletError(formatWalletError(caught));
+    } finally {
+      setWalletBusy(false);
+    }
+  }
 
   async function uploadDemoEvidence() {
     setBusy(true);
@@ -170,6 +272,56 @@ export default function App() {
               : "Evidence API unavailable"}
         </div>
       </header>
+
+      <section className="wallet-card" aria-labelledby="wallet-title">
+        <div className="wallet-copy">
+          <p className="eyebrow">BROWSER WALLET</p>
+          <h2 id="wallet-title">
+            {wallet
+              ? "Wallet connected"
+              : "Connect your wallet"}
+          </h2>
+          <p>
+            {wallet
+              ? `${shortenWalletAddress(wallet.account)} · ${
+                  wallet.chainId === POLYGON_AMOY_CHAIN_ID
+                    ? "Polygon Amoy"
+                    : `Wrong network (chain ID ${wallet.chainId})`
+                }`
+              : "Connect through your wallet extension. This only shares your public address; it does not sign or send a transaction."}
+          </p>
+        </div>
+        {wallet ? (
+          wallet.chainId === POLYGON_AMOY_CHAIN_ID ? (
+            <span className="wallet-network wallet-network-ready">
+              Polygon Amoy · 80002
+            </span>
+          ) : (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={handleSwitchNetwork}
+              disabled={walletBusy}
+            >
+              {walletBusy ? "Waiting for wallet..." : "Switch to Polygon Amoy"}
+            </button>
+          )
+        ) : (
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={handleConnectWallet}
+            disabled={walletBusy}
+          >
+            {walletBusy ? "Check your wallet..." : "Connect wallet"}
+          </button>
+        )}
+        {walletError && (
+          <p className="wallet-error" role="alert">
+            {walletError}
+          </p>
+        )}
+      </section>
 
       <section className="hero" aria-labelledby="page-title">
         <p className="eyebrow">SYNTHETIC DEMO</p>
