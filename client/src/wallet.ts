@@ -1,5 +1,18 @@
 export const POLYGON_AMOY_CHAIN_ID = 80_002;
 export const POLYGON_AMOY_CHAIN_HEX = "0x13882";
+export const LOCAL_HARDHAT_CHAIN_ID = 31_337;
+export const LOCAL_HARDHAT_CHAIN_HEX = "0x7a69";
+
+const configuredChainId = import.meta.env?.VITE_CHAIN_ID;
+export const TARGET_CHAIN_ID = configuredChainId
+  ? Number(configuredChainId)
+  : LOCAL_HARDHAT_CHAIN_ID;
+
+export function getTargetChainName(): string {
+  if (TARGET_CHAIN_ID === LOCAL_HARDHAT_CHAIN_ID) return "Local Hardhat";
+  if (TARGET_CHAIN_ID === POLYGON_AMOY_CHAIN_ID) return "Polygon Amoy";
+  return `Unsupported chain ${TARGET_CHAIN_ID}`;
+}
 
 export interface WalletConnection {
   account: `0x${string}`;
@@ -80,32 +93,48 @@ export async function readInjectedWallet(
   };
 }
 
-export async function switchToPolygonAmoy(
+export async function switchToTargetChain(
   provider: Eip1193Provider,
 ): Promise<void> {
+  const target = getTargetChainConfiguration();
   try {
     await provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: POLYGON_AMOY_CHAIN_HEX }],
+      params: [{ chainId: target.chainId }],
     });
   } catch (error) {
     if (getProviderErrorCode(error) !== 4902) throw error;
 
     await provider.request({
       method: "wallet_addEthereumChain",
-      params: [{
-        chainId: POLYGON_AMOY_CHAIN_HEX,
-        chainName: "Polygon Amoy",
-        nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
-        rpcUrls: ["https://rpc-amoy.polygon.technology"],
-        blockExplorerUrls: ["https://amoy.polygonscan.com/"],
-      }],
+      params: [target],
     });
     await provider.request({
       method: "wallet_switchEthereumChain",
-      params: [{ chainId: POLYGON_AMOY_CHAIN_HEX }],
+      params: [{ chainId: target.chainId }],
     });
   }
+}
+
+function getTargetChainConfiguration() {
+  if (TARGET_CHAIN_ID === LOCAL_HARDHAT_CHAIN_ID) {
+    return {
+      chainId: LOCAL_HARDHAT_CHAIN_HEX,
+      chainName: "Hardhat Local",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: ["http://127.0.0.1:8545"],
+    };
+  }
+  if (TARGET_CHAIN_ID === POLYGON_AMOY_CHAIN_ID) {
+    return {
+      chainId: POLYGON_AMOY_CHAIN_HEX,
+      chainName: "Polygon Amoy",
+      nativeCurrency: { name: "POL", symbol: "POL", decimals: 18 },
+      rpcUrls: ["https://rpc-amoy.polygon.technology"],
+      blockExplorerUrls: ["https://amoy.polygonscan.com/"],
+    };
+  }
+  throw new Error("Only local Hardhat (31337) and Polygon Amoy (80002) are supported.");
 }
 
 export function getProviderErrorCode(error: unknown): number | undefined {

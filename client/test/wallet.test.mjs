@@ -3,13 +3,15 @@ import { describe, it } from "node:test";
 import {
   connectInjectedWallet,
   formatWalletError,
+  getTargetChainName,
   getProviderErrorCode,
+  LOCAL_HARDHAT_CHAIN_HEX,
   parseWalletAccount,
   parseWalletChainId,
-  POLYGON_AMOY_CHAIN_HEX,
   readInjectedWallet,
   shortenWalletAddress,
-  switchToPolygonAmoy,
+  switchToTargetChain,
+  TARGET_CHAIN_ID,
 } from "../src/wallet.ts";
 
 const ACCOUNT = "0x1234567890abcdef1234567890abcdef12345678";
@@ -35,7 +37,7 @@ describe("injected wallet helpers", () => {
   it("requests account approval and reads the selected chain", async () => {
     const provider = mockProvider({
       eth_requestAccounts: [ACCOUNT],
-      eth_chainId: POLYGON_AMOY_CHAIN_HEX,
+      eth_chainId: "0x13882",
     });
 
     assert.deepEqual(await connectInjectedWallet(provider), {
@@ -51,7 +53,7 @@ describe("injected wallet helpers", () => {
   it("does not treat an empty account list as a connection", async () => {
     const provider = mockProvider({
       eth_requestAccounts: [],
-      eth_chainId: POLYGON_AMOY_CHAIN_HEX,
+      eth_chainId: LOCAL_HARDHAT_CHAIN_HEX,
     });
 
     await assert.rejects(connectInjectedWallet(provider), /did not provide an account/);
@@ -73,7 +75,7 @@ describe("injected wallet helpers", () => {
   it("returns no connection when the wallet has not authorized an account", async () => {
     const provider = mockProvider({
       eth_accounts: [],
-      eth_chainId: POLYGON_AMOY_CHAIN_HEX,
+      eth_chainId: LOCAL_HARDHAT_CHAIN_HEX,
     });
 
     assert.equal(await readInjectedWallet(provider), null);
@@ -82,11 +84,11 @@ describe("injected wallet helpers", () => {
   it("validates account and chain values", () => {
     assert.throws(() => parseWalletAccount("not-an-address"), /valid account address/);
     assert.throws(() => parseWalletChainId("80002"), /invalid network ID/);
-    assert.equal(parseWalletChainId(POLYGON_AMOY_CHAIN_HEX), 80002);
+    assert.equal(parseWalletChainId(LOCAL_HARDHAT_CHAIN_HEX), 31337);
     assert.equal(shortenWalletAddress(ACCOUNT), "0x1234…5678");
   });
 
-  it("adds and then selects Amoy when the wallet does not know the chain", async () => {
+  it("targets local Hardhat by default and adds it when the wallet does not know the chain", async () => {
     const provider = mockProvider(
       {},
       {
@@ -96,7 +98,9 @@ describe("injected wallet helpers", () => {
       },
     );
 
-    await switchToPolygonAmoy(provider);
+    await switchToTargetChain(provider);
+    assert.equal(TARGET_CHAIN_ID, 31337);
+    assert.equal(getTargetChainName(), "Local Hardhat");
     assert.deepEqual(
       provider.calls.map(({ method }) => method),
       [
@@ -107,7 +111,7 @@ describe("injected wallet helpers", () => {
     );
     assert.equal(
       provider.calls[1].params[0].chainId,
-      POLYGON_AMOY_CHAIN_HEX,
+      LOCAL_HARDHAT_CHAIN_HEX,
     );
   });
 

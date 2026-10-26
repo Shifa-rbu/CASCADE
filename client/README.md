@@ -1,42 +1,23 @@
 # CASCADE client
 
-This is a local demo client for the synthetic evidence API. It creates a
-synthetic PDF in the browser, uploads it to the API, computes SHA-256 over the
-same bytes, and only displays a record when the browser and API digests match.
+This client creates a synthetic PDF, uploads it to the local evidence API,
+computes the same SHA-256 digest in the browser, and displays a record only
+when the two digests match. It can connect to an injected wallet and submit a
+signed proposal to the configured escrow contract.
 
-The client can connect to an injected browser wallet such as MetaMask using the
-wallet's account-approval prompt. It displays the public account and selected
-network and can request a switch to Polygon Amoy (chain ID 80002). Wallet
-connection does not sign or send transactions. Signature and contract
-duplicate status remain `UNVERIFIED`. Use synthetic demo data only.
+The transaction is a real wallet-confirmed action on the selected chain. A
+new proposal reserves campaign funds; the client does not release funds.
+Signature and duplicate statuses from the API stay `UNVERIFIED`. The contract
+detects exact digest replays, not edited or re-scanned documents, and does not
+prove invoice authenticity.
 
-## Run locally
+For the complete Windows setup (local Hardhat, MetaMask, API, and Vite), follow
+the [repository README](../README.md#windows-local-demo).
 
-From the repository root, start the API in one terminal:
-
-```powershell
-node server/src/index.mts
-```
-
-In another terminal, install the client dependencies once and start Vite:
-
-```powershell
-cd client
-npm install
-npm run dev
-```
-
-Open the local URL printed by Vite. The development server proxies `/api`
-requests to `http://127.0.0.1:3001`.
-
-To create a production bundle:
-
-```powershell
-npm run build
-```
-
-Run the wallet helper tests with:
+The Vite development server proxies `/api` to `http://127.0.0.1:3001`. Client
+checks:
 
 ```powershell
 npm test
+npm run build
 ```

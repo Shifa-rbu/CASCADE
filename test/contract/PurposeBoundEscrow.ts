@@ -254,6 +254,40 @@ describe("PurposeBoundEscrow", function () {
     expect((await fixture.escrow.proposals(duplicate.proposalId)).status).to.equal(2n);
   });
 
+  it("holds the same evidence digest when replayed with a different invoice nullifier", async function () {
+    const fixture = await deployFixture();
+    const original = await propose(fixture, {
+      invoiceNullifier: ethers.keccak256(ethers.toUtf8Bytes("first-nullifier")),
+    });
+    const secondNullifier = ethers.keccak256(ethers.toUtf8Bytes("attacker-chosen-nullifier"));
+    const duplicate = await propose(fixture, {
+      invoiceNullifier: secondNullifier,
+      evidenceDigest: original.value.evidenceDigest,
+    });
+
+    await expect(duplicate.transaction)
+      .to.emit(fixture.escrow, "EvidenceDuplicateAttempt")
+      .withArgs(
+        duplicate.proposalId,
+        original.value.evidenceDigest,
+        original.proposalId,
+        fixture.vendor.address
+      );
+    expect((await fixture.escrow.proposals(duplicate.proposalId)).status).to.equal(2n);
+    expect(await fixture.escrow.evidenceStates(original.value.evidenceDigest)).to.equal(1n);
+    expect(await fixture.escrow.evidenceProposalIds(original.value.evidenceDigest)).to.equal(
+      original.proposalId
+    );
+    expect(await fixture.escrow.invoiceStates(secondNullifier)).to.equal(0n);
+    expect(await fixture.escrow.reservedTotal()).to.equal(ethers.parseEther("1"));
+    await expect(fixture.escrow.approveSpend(duplicate.proposalId)).to.be.revertedWith(
+      "Proposal not approvable"
+    );
+    await expect(fixture.escrow.releaseSpend(duplicate.proposalId)).to.be.revertedWith(
+      "Proposal not releasable"
+    );
+  });
+
   it("records a consumed-invoice replay without changing the prior payment or invoice state", async function () {
     const fixture = await deployFixture();
     const original = await propose(fixture, {
@@ -264,12 +298,17 @@ describe("PurposeBoundEscrow", function () {
     await fixture.escrow.releaseSpend(original.proposalId);
 
     const duplicate = await propose(fixture, {
-      invoiceNullifier: original.value.invoiceNullifier,
+      invoiceNullifier: ethers.keccak256(ethers.toUtf8Bytes("different-nullifier-after-payment")),
+      evidenceDigest: original.value.evidenceDigest,
     });
-    await expect(duplicate.transaction).to.emit(fixture.escrow, "DuplicateInvoiceAttempt");
+    await expect(duplicate.transaction).to.emit(fixture.escrow, "EvidenceDuplicateAttempt");
 
     expect(await fixture.escrow.invoiceStates(original.value.invoiceNullifier)).to.equal(2n);
+    expect(await fixture.escrow.evidenceStates(original.value.evidenceDigest)).to.equal(2n);
     expect(await fixture.escrow.invoiceProposalIds(original.value.invoiceNullifier)).to.equal(
+      original.proposalId
+    );
+    expect(await fixture.escrow.evidenceProposalIds(original.value.evidenceDigest)).to.equal(
       original.proposalId
     );
     expect(await fixture.escrow.releasedTotal()).to.equal(ethers.parseEther("1"));
@@ -287,6 +326,8 @@ describe("PurposeBoundEscrow", function () {
     expect((await fixture.escrow.proposals(proposal.proposalId)).status).to.equal(4n);
     expect(await fixture.escrow.invoiceStates(proposal.value.invoiceNullifier)).to.equal(0n);
     expect(await fixture.escrow.invoiceProposalIds(proposal.value.invoiceNullifier)).to.equal(0n);
+    expect(await fixture.escrow.evidenceStates(proposal.value.evidenceDigest)).to.equal(0n);
+    expect(await fixture.escrow.evidenceProposalIds(proposal.value.evidenceDigest)).to.equal(0n);
   });
 
   it("lets anyone expire a reservation after its deadline", async function () {

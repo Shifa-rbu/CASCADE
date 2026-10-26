@@ -3,9 +3,12 @@ dist/
 coverage/
 artifacts/
 cache/
+typechain-types/
 *.tsbuildinfo
 .env
 .env.*
 !.env.example
 client/node_modules/
 client/dist/
+client/.env.local
+client/.env.*.local

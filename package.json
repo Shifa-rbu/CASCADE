@@ -1,0 +1,24 @@
+{
+  "name": "cascade",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "test": "npm run test:contract && npm run test:api && npm run test:client",
+    "test:contract": "hardhat test",
+    "test:api": "node --test server/test/evidence/*.test.mts",
+    "test:client": "npm --prefix client test",
+    "build:client": "npm --prefix client run build",
+    "dev:chain": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy-local.ts --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/node": "^22.13.10",
+    "hardhat": "^2.26.3",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.8.3"
+  }
+}

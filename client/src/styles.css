@@ -386,6 +386,80 @@ h1 {
   font-size: 1rem;
 }
 
+.proposal-panel {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 20px;
+  background: #f7faf8;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.proposal-panel h3,
+.proposal-panel .body-copy,
+.proposal-status p {
+  margin: 0;
+}
+
+.proposal-panel h3 {
+  font-size: 1.25rem;
+}
+
+.proposal-panel .body-copy {
+  margin: 0;
+}
+
+.contract-target {
+  margin: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.amount-label {
+  font-weight: 650;
+}
+
+.amount-input {
+  width: min(100%, 320px);
+  min-height: 48px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: white;
+  border: 1px solid #aebfb3;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.amount-input:focus-visible {
+  outline: 3px solid #78a98e;
+  outline-offset: 2px;
+}
+
+.proposal-status {
+  width: 100%;
+  padding: 14px;
+  overflow-wrap: anywhere;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.proposal-failed {
+  color: var(--red);
+  background: var(--red-pale);
+  border-color: #f0cccc;
+}
+
+.transaction-hash {
+  margin: 8px 0 0 !important;
+}
+
+.transaction-hash code {
+  overflow-wrap: anywhere;
+}
+
 .limits-card {
   display: flex;
   align-items: flex-start;
