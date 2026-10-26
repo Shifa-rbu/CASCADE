@@ -1,6 +1,11 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
-import { time } from "@nomicfoundation/hardhat-network-helpers";
+import type { BytesLike, Signer } from "ethers";
+import { network } from "hardhat";
+import type { PurposeBoundEscrow } from "../../types/ethers-contracts/PurposeBoundEscrow.js";
+import { PurposeBoundEscrow__factory } from "../../types/ethers-contracts/factories/PurposeBoundEscrow__factory.js";
+
+const { ethers, networkHelpers } = await network.create();
+const { time } = networkHelpers;
 
 const vendorSpendTypes = {
   VendorSpend: [
@@ -19,7 +24,10 @@ describe("PurposeBoundEscrow", function () {
     const [admin, reviewer, approver1, approver2, approver3, vendor, donor, outsider] =
       await ethers.getSigners();
     const category = ethers.encodeBytes32String("community");
-    const factory = await ethers.getContractFactory("PurposeBoundEscrow");
+    const factory = await ethers.getContractFactory<
+      [string, BytesLike, bigint, [string, string, string], string],
+      PurposeBoundEscrow
+    >("PurposeBoundEscrow");
     const escrow = await factory.deploy(
       "Community support",
       category,
@@ -28,10 +36,15 @@ describe("PurposeBoundEscrow", function () {
       reviewer.address
     );
     await escrow.waitForDeployment();
-    await escrow.setVendorKeyStatus(vendor.address, true);
-    await escrow.connect(donor).donate(1, { value: ethers.parseEther("2") });
+    const escrowAddress = await escrow.getAddress();
+    const typedEscrow = PurposeBoundEscrow__factory.connect(escrowAddress, admin);
+    await typedEscrow.setVendorKeyStatus(vendor.address, true);
+    await PurposeBoundEscrow__factory.connect(escrowAddress, donor).donate(1, {
+      value: ethers.parseEther("2"),
+    });
     return {
-      escrow,
+      escrow: typedEscrow,
+      escrowAddress,
       admin,
       reviewer,
       approver1,
@@ -42,6 +55,13 @@ describe("PurposeBoundEscrow", function () {
       outsider,
       category,
     };
+  }
+
+  function escrowFor(
+    fixture: Awaited<ReturnType<typeof deployFixture>>,
+    signer: Signer
+  ) {
+    return PurposeBoundEscrow__factory.connect(fixture.escrowAddress, signer);
   }
 
   async function signProposal(
@@ -94,7 +114,7 @@ describe("PurposeBoundEscrow", function () {
     submitter: Awaited<ReturnType<typeof deployFixture>>["outsider"] = fixture.outsider
   ) {
     const signed = await signProposal(fixture.escrow, fixture.vendor, options);
-    const transaction = await fixture.escrow.connect(submitter).proposeSpend(
+    const transaction = await escrowFor(fixture, submitter).proposeSpend(
       1,
       signed.value.amount,
       signed.value.category,
@@ -205,18 +225,18 @@ describe("PurposeBoundEscrow", function () {
     const proposal = await fixture.escrow.proposals(proposalId);
 
     await expect(
-      fixture.escrow.connect(fixture.outsider).approveSpend(proposalId)
+      escrowFor(fixture, fixture.outsider).approveSpend(proposalId)
     ).to.be.revertedWith("Not approver");
-    await fixture.escrow.connect(fixture.approver1).approveSpend(proposalId);
+    await escrowFor(fixture, fixture.approver1).approveSpend(proposalId);
     await expect(
-      fixture.escrow.connect(fixture.approver1).approveSpend(proposalId)
+      escrowFor(fixture, fixture.approver1).approveSpend(proposalId)
     ).to.be.revertedWith("Already approved");
     await expect(fixture.escrow.releaseSpend(proposalId)).to.be.revertedWith(
       "Two approvals required"
     );
 
     const vendorBalanceBefore = await ethers.provider.getBalance(fixture.vendor.address);
-    await fixture.escrow.connect(fixture.approver2).approveSpend(proposalId);
+    await escrowFor(fixture, fixture.approver2).approveSpend(proposalId);
     await expect(fixture.escrow.releaseSpend(proposalId))
       .to.emit(fixture.escrow, "SpendReleased")
       .withArgs(proposalId, fixture.vendor.address, ethers.parseEther("1"));
@@ -249,7 +269,7 @@ describe("PurposeBoundEscrow", function () {
       "Proposal not releasable"
     );
 
-    await fixture.escrow.connect(fixture.reviewer).resolveReview(duplicate.proposalId, 2);
+    await escrowFor(fixture, fixture.reviewer).resolveReview(duplicate.proposalId, 2);
     expect((await fixture.escrow.proposals(duplicate.proposalId)).reviewOutcome).to.equal(2n);
     expect((await fixture.escrow.proposals(duplicate.proposalId)).status).to.equal(2n);
   });
@@ -293,8 +313,8 @@ describe("PurposeBoundEscrow", function () {
     const original = await propose(fixture, {
       invoiceNullifier: ethers.keccak256(ethers.toUtf8Bytes("paid-invoice")),
     });
-    await fixture.escrow.connect(fixture.approver1).approveSpend(original.proposalId);
-    await fixture.escrow.connect(fixture.approver2).approveSpend(original.proposalId);
+    await escrowFor(fixture, fixture.approver1).approveSpend(original.proposalId);
+    await escrowFor(fixture, fixture.approver2).approveSpend(original.proposalId);
     await fixture.escrow.releaseSpend(original.proposalId);
 
     const duplicate = await propose(fixture, {
@@ -319,9 +339,9 @@ describe("PurposeBoundEscrow", function () {
     const proposal = await propose(fixture, {}, fixture.donor);
 
     await expect(
-      fixture.escrow.connect(fixture.outsider).cancelOrExpireReservation(proposal.proposalId)
+      escrowFor(fixture, fixture.outsider).cancelOrExpireReservation(proposal.proposalId)
     ).to.be.revertedWith("Not authorized to cancel");
-    await fixture.escrow.connect(fixture.donor).cancelOrExpireReservation(proposal.proposalId);
+    await escrowFor(fixture, fixture.donor).cancelOrExpireReservation(proposal.proposalId);
 
     expect((await fixture.escrow.proposals(proposal.proposalId)).status).to.equal(4n);
     expect(await fixture.escrow.invoiceStates(proposal.value.invoiceNullifier)).to.equal(0n);
@@ -336,7 +356,7 @@ describe("PurposeBoundEscrow", function () {
     const proposal = await propose(fixture, { deadline });
 
     await time.increaseTo(deadline + 1);
-    await fixture.escrow.connect(fixture.outsider).cancelOrExpireReservation(proposal.proposalId);
+    await escrowFor(fixture, fixture.outsider).cancelOrExpireReservation(proposal.proposalId);
     expect((await fixture.escrow.proposals(proposal.proposalId)).status).to.equal(4n);
     expect(await fixture.escrow.invoiceStates(proposal.value.invoiceNullifier)).to.equal(0n);
   });
@@ -351,10 +371,10 @@ describe("PurposeBoundEscrow", function () {
     });
 
     await expect(
-      fixture.escrow.connect(fixture.outsider).resolveReview(held.proposalId, 1)
+      escrowFor(fixture, fixture.outsider).resolveReview(held.proposalId, 1)
     ).to.be.revertedWith("Not reviewer");
-    await fixture.escrow.connect(fixture.reviewer).cancelOrExpireReservation(original.proposalId);
-    await expect(fixture.escrow.connect(fixture.reviewer).resolveReview(held.proposalId, 1))
+    await escrowFor(fixture, fixture.reviewer).cancelOrExpireReservation(original.proposalId);
+    await expect(escrowFor(fixture, fixture.reviewer).resolveReview(held.proposalId, 1))
       .to.emit(fixture.escrow, "ReviewResolved")
       .withArgs(held.proposalId, fixture.reviewer.address, 1);
 
@@ -465,14 +485,14 @@ describe("PurposeBoundEscrow", function () {
   it("blocks approval and release after a vendor key is revoked", async function () {
     const fixture = await deployFixture();
     const { proposalId } = await propose(fixture);
-    await fixture.escrow.connect(fixture.approver1).approveSpend(proposalId);
+    await escrowFor(fixture, fixture.approver1).approveSpend(proposalId);
     await expect(
-      fixture.escrow.connect(fixture.outsider).setVendorKeyStatus(fixture.vendor.address, false)
+      escrowFor(fixture, fixture.outsider).setVendorKeyStatus(fixture.vendor.address, false)
     ).to.be.revertedWith("Not admin");
     await fixture.escrow.setVendorKeyStatus(fixture.vendor.address, false);
 
     await expect(
-      fixture.escrow.connect(fixture.approver2).approveSpend(proposalId)
+      escrowFor(fixture, fixture.approver2).approveSpend(proposalId)
     ).to.be.revertedWith("Vendor key inactive");
     await expect(fixture.escrow.releaseSpend(proposalId)).to.be.revertedWith(
       "Vendor key inactive"
@@ -481,7 +501,10 @@ describe("PurposeBoundEscrow", function () {
 
   it("rejects duplicate approver addresses at deployment", async function () {
     const { approver1, approver3, reviewer, category } = await deployFixture();
-    const factory = await ethers.getContractFactory("PurposeBoundEscrow");
+    const factory = await ethers.getContractFactory<
+      [string, BytesLike, bigint, [string, string, string], string],
+      PurposeBoundEscrow
+    >("PurposeBoundEscrow");
 
     await expect(
       factory.deploy(

@@ -1,10 +1,13 @@
-import { ethers } from "hardhat";
+import { network as hardhatNetwork } from "hardhat";
+import type { BytesLike } from "ethers";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { PurposeBoundEscrow } from "../types/ethers-contracts/PurposeBoundEscrow.js";
 
 async function main() {
-  const network = await ethers.provider.getNetwork();
-  if (network.chainId !== 31337n) {
+  const { ethers } = await hardhatNetwork.create();
+  const networkInfo = await ethers.provider.getNetwork();
+  if (networkInfo.chainId !== 31337n) {
     throw new Error("This demo deployment script is restricted to the local Hardhat chain (31337).");
   }
 
@@ -17,7 +20,10 @@ async function main() {
     ? ethers.getAddress(configuredVendor)
     : deployer.address;
   const category = ethers.encodeBytes32String("community");
-  const factory = await ethers.getContractFactory("PurposeBoundEscrow");
+  const factory = await ethers.getContractFactory<
+    [string, BytesLike, bigint, [string, string, string], string],
+    PurposeBoundEscrow
+  >("PurposeBoundEscrow");
   const escrow = await factory.deploy(
     "Community support",
     category,
@@ -76,7 +82,7 @@ async function main() {
     JSON.stringify(
       {
         contractAddress,
-        chainId: network.chainId.toString(),
+        chainId: networkInfo.chainId.toString(),
         environmentFile: "client/.env.local",
         campaignId: 1,
         purpose: "Community support",
