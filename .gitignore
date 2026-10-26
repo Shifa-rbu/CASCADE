@@ -4,6 +4,7 @@ coverage/
 artifacts/
 cache/
 typechain-types/
+/types/
 *.tsbuildinfo
 .env
 .env.*

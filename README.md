@@ -25,7 +25,7 @@ npm --prefix client ci
 Start the local Hardhat chain in Terminal 1:
 
 ```powershell
-npm run dev:chain *> $null
+npm run dev:chain
 ```
 
 Hardhat prints deterministic development signing keys by default. This command
@@ -82,9 +82,17 @@ previous contract or account configuration.
 ## Checks
 
 ```powershell
+npm audit
+npm --prefix client audit
 npm test
+npm run typecheck
 npm run build:client
 ```
+
+The root Hardhat toolchain uses Hardhat 3. Its npm override requires Zod
+4.6.7 or newer because the current Hardhat plugins request the vulnerable Zod
+3 range. Keep this override until the upstream toolchain declares a patched
+compatible dependency, and re-run both audits after dependency changes.
 
 The local proposal uses an actual local-chain transaction when you run it in a
 browser with MetaMask. Wallet connection and transaction submission have not
