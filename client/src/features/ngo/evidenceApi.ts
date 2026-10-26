@@ -30,12 +30,21 @@ export class EvidenceApiError extends Error {
   }
 }
 
-function isUuid(value: string) {
+export function isUuid(value: string) {
   return UUID_PATTERN.test(value);
 }
 
-function endpoint(baseUrl: string, path: string) {
-  return `${baseUrl.replace(/\/+$/, "")}${path}`;
+export function endpoint(baseUrl: string, path: string) {
+  const cleanBase = (baseUrl || "").replace(/\/+$/, "");
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  if (!cleanBase) return cleanPath;
+  if (cleanBase.endsWith("/api/v1") && cleanPath.startsWith("/api/v1")) {
+    return `${cleanBase.slice(0, -"/api/v1".length)}${cleanPath}`;
+  }
+  if (cleanBase.endsWith("/api") && cleanPath.startsWith("/api")) {
+    return `${cleanBase.slice(0, -"/api".length)}${cleanPath}`;
+  }
+  return `${cleanBase}${cleanPath}`;
 }
 
 function safeRecord(value: unknown): EvidenceApiRecord {
@@ -112,7 +121,8 @@ export function uploadEvidence(
 ): Promise<EvidenceApiRecord> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", endpoint(baseUrl, "/api/v1/evidence"));
+    const targetUrl = endpoint(baseUrl, "/api/v1/evidence");
+    request.open("POST", targetUrl);
     request.timeout = 30_000;
     request.responseType = "text";
     request.upload.onprogress = (event) => {
@@ -120,7 +130,7 @@ export function uploadEvidence(
         onProgress?.({ loaded: event.loaded, total: event.total });
       }
     };
-    request.onerror = () => reject(new EvidenceApiError("Evidence upload could not reach the API."));
+    request.onerror = () => reject(new EvidenceApiError("Evidence upload could not reach the API. Is `node server/src/index.mts` running?"));
     request.ontimeout = () => reject(new EvidenceApiError("Evidence upload timed out."));
     request.onload = () => {
       if (request.status < 200 || request.status >= 300) {
